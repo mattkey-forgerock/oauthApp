@@ -1,16 +1,12 @@
 import express from "express";
 import session from "express-session";
-import { Issuer, generators } from "openid-client";
-import { createRequire } from "module";
-import { readFileSync } from "fs";
+import * as openid from "openid-client";
 
-// --- Log the real installed version ---
-const require = createRequire(import.meta.url);
-const pkgPath = require.resolve("openid-client/package.json");
-const version = JSON.parse(readFileSync(pkgPath, "utf8")).version;
-console.log("=== Runtime info ===");
-console.log("openid-client version:", version);
-console.log("====================");
+// --- Log module info safely ---
+console.log("openid-client version (declared in package.json):", process.env.npm_package_dependencies_openid_client);
+console.log("openid-client exports available:", Object.keys(openid));
+
+const { Issuer, generators } = openid;
 
 const {
     OIDC_ISSUER,
@@ -51,8 +47,14 @@ let cachedClient;
 async function getClient() {
     if (cachedClient) return cachedClient;
     console.log("Calling Issuer.discover for:", OIDC_ISSUER);
+
+    if (!Issuer) {
+        throw new Error("Issuer is not exported by openid-client. Available exports: " + Object.keys(openid));
+    }
+
     const issuer = await Issuer.discover(OIDC_ISSUER);
     console.log("Discovered issuer metadata keys:", Object.keys(issuer.metadata));
+
     cachedClient = new issuer.Client({
         client_id: OIDC_CLIENT_ID,
         token_endpoint_auth_method: "none",
@@ -60,6 +62,7 @@ async function getClient() {
         response_types: ["code"],
     });
     console.log("OIDC client created with metadata:", cachedClient.metadata);
+
     return cachedClient;
 }
 
