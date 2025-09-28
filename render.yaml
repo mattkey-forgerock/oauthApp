@@ -1,7 +1,7 @@
 services:
   - name: pingone-hello
     type: web
-    env: node
+    runtime: node
     plan: starter
     buildCommand: "npm install"
     startCommand: "node server.js"
