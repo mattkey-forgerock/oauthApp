@@ -10,6 +10,6 @@
         "start": "node server.js"
     },
     "dependencies": {
-        "openid-client": "https://registry.npmjs.org/openid-client/-/openid-client-6.1.7.tgz"
+        "openid-client": "npm:openid-client@6.1.7"
     }
 }
