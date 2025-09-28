@@ -2,6 +2,7 @@
 const express = require("express");
 const session = require("express-session");
 const { Issuer, generators } = require("openid-client");
+console.log("Issuer type is:", typeof Issuer);
 
 const {
     OIDC_ISSUER,     // e.g. https://auth.pingone.com/<ENV_ID>/as
