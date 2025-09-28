@@ -11,6 +11,12 @@ const {
     PORT = 10000,    // Render sets PORT for you
 } = process.env;
 
+console.log("Startup environment:");
+console.log("OIDC_ISSUER:", OIDC_ISSUER);
+console.log("OIDC_CLIENT_ID:", OIDC_CLIENT_ID);
+console.log("RENDER_EXTERNAL_URL:", RENDER_EXTERNAL_URL);
+console.log("PORT:", PORT);
+
 if (!OIDC_ISSUER || !OIDC_CLIENT_ID) {
     throw new Error("Missing env vars: OIDC_ISSUER, OIDC_CLIENT_ID");
 }
