@@ -1,16 +1,16 @@
 import express from "express";
 import session from "express-session";
-// import { discovery } from "openid-client";
 import { Issuer, generators } from "openid-client";
 import { createRequire } from "module";
 import { readFileSync } from "fs";
 
+// --- Log the real installed version ---
 const require = createRequire(import.meta.url);
-const path = require.resolve("openid-client/package.json");
-const version = JSON.parse(readFileSync(path, "utf8")).version;
-
+const pkgPath = require.resolve("openid-client/package.json");
+const version = JSON.parse(readFileSync(pkgPath, "utf8")).version;
+console.log("=== Runtime info ===");
 console.log("openid-client version:", version);
-import crypto from "crypto";
+console.log("====================");
 
 const {
     OIDC_ISSUER,
@@ -20,25 +20,19 @@ const {
     PORT = 10000,
 } = process.env;
 
-// PKCE helpers
-function generateCodeVerifier() {
-    return crypto.randomBytes(32).toString("hex");
-}
-function generateCodeChallenge(verifier) {
-    return crypto
-        .createHash("sha256")
-        .update(verifier)
-        .digest()
-        .toString("base64")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
-}
+console.log("Startup environment:");
+console.log("OIDC_ISSUER:", OIDC_ISSUER);
+console.log("OIDC_CLIENT_ID:", OIDC_CLIENT_ID);
+console.log("RENDER_EXTERNAL_URL:", RENDER_EXTERNAL_URL);
+console.log("SESSION_SECRET set:", !!SESSION_SECRET);
+console.log("PORT:", PORT);
 
 if (!OIDC_ISSUER || !OIDC_CLIENT_ID || !RENDER_EXTERNAL_URL) {
-    throw new Error("Missing required env vars");
+    throw new Error("Missing required env vars: OIDC_ISSUER, OIDC_CLIENT_ID, RENDER_EXTERNAL_URL");
 }
+
 const OIDC_REDIRECT_URI = `${RENDER_EXTERNAL_URL}/callback`;
+console.log("OIDC_REDIRECT_URI:", OIDC_REDIRECT_URI);
 
 const app = express();
 app.set("trust proxy", 1);
@@ -56,37 +50,41 @@ app.use(
 let cachedClient;
 async function getClient() {
     if (cachedClient) return cachedClient;
-    console.log("Discovering issuer:", OIDC_ISSUER);
-    const { client } = await discovery({
-        issuer: OIDC_ISSUER,
+    console.log("Calling Issuer.discover for:", OIDC_ISSUER);
+    const issuer = await Issuer.discover(OIDC_ISSUER);
+    console.log("Discovered issuer metadata keys:", Object.keys(issuer.metadata));
+    cachedClient = new issuer.Client({
         client_id: OIDC_CLIENT_ID,
         token_endpoint_auth_method: "none",
         redirect_uris: [OIDC_REDIRECT_URI],
         response_types: ["code"],
     });
-    console.log("Discovered client metadata:", client.metadata);
-    cachedClient = client;
-    return client;
+    console.log("OIDC client created with metadata:", cachedClient.metadata);
+    return cachedClient;
 }
 
 function ensureAuth(req, res, next) {
-    if (req.session?.id_token) return next();
+    if (req.session?.id_token) {
+        console.log("User authenticated with claims:", req.session.userinfo);
+        return next();
+    }
+    console.log("User not authenticated, redirecting to /login");
     return res.redirect("/login");
 }
 
 app.get("/login", async (req, res, next) => {
     try {
         const client = await getClient();
-        const code_verifier = generateCodeVerifier();
-        const code_challenge = generateCodeChallenge(code_verifier);
-        const state = crypto.randomBytes(16).toString("hex");
-        const nonce = crypto.randomBytes(16).toString("hex");
+        const code_verifier = generators.codeVerifier();
+        const code_challenge = generators.codeChallenge(code_verifier);
+        const state = generators.state();
+        const nonce = generators.nonce();
 
         req.session.code_verifier = code_verifier;
         req.session.state = state;
         req.session.nonce = nonce;
 
-        const authUrl = client.buildAuthorizationUrl({
+        const authUrl = client.authorizationUrl({
             scope: "openid profile email",
             code_challenge,
             code_challenge_method: "S256",
@@ -94,7 +92,7 @@ app.get("/login", async (req, res, next) => {
             nonce,
         });
 
-        console.log("Redirecting to:", authUrl);
+        console.log("Redirecting user to:", authUrl);
         res.redirect(authUrl);
     } catch (err) {
         console.error("Login error:", err);
@@ -104,20 +102,18 @@ app.get("/login", async (req, res, next) => {
 
 app.get("/callback", async (req, res, next) => {
     try {
-        console.log("Callback params:", req.query);
+        console.log("Callback received with query params:", req.query);
         const client = await getClient();
+        const params = client.callbackParams(req);
 
-        const tokenSet = await client.authorizationCodeGrant({
-            parameters: req.query,
-            checks: {
-                state: req.session.state,
-                nonce: req.session.nonce,
-                code_verifier: req.session.code_verifier,
-            },
+        const tokenSet = await client.callback(OIDC_REDIRECT_URI, params, {
+            state: req.session.state,
+            nonce: req.session.nonce,
+            code_verifier: req.session.code_verifier,
         });
 
-        console.log("TokenSet:", tokenSet);
-        console.log("Claims:", tokenSet.claims());
+        console.log("TokenSet received:", tokenSet);
+        console.log("Claims extracted:", tokenSet.claims());
 
         req.session.id_token = tokenSet.id_token;
         req.session.access_token = tokenSet.access_token;
@@ -132,6 +128,11 @@ app.get("/callback", async (req, res, next) => {
 
 app.get("/", ensureAuth, (req, res) => {
     res.type("text").send("hello world");
+});
+
+app.use((err, _req, res, _next) => {
+    console.error("Unhandled error:", err);
+    res.status(500).send("Something went wrong.");
 });
 
 app.listen(PORT, () => {
