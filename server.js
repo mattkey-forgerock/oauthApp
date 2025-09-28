@@ -1,6 +1,8 @@
 import express from "express";
 import session from "express-session";
-import { discovery } from "openid-client";
+// import { discovery } from "openid-client";
+import { Issuer, generators } from "openid-client";
+console.log("openid-client version:", (await import("openid-client/package.json", { assert: { type: "json" } })).default.version);
 import crypto from "crypto";
 
 const {
