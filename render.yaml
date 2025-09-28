@@ -3,12 +3,12 @@ services:
     type: web
     runtime: node
     plan: starter
-    buildCommand: "npm install"
+    buildCommand: "npm install --omit=dev"
     startCommand: "node server.js"
     envVars:
       - key: OIDC_ISSUER
-        value: "https://auth.pingone.ca/73391f1a-5c96-4b12-9936-5449b3a18b67/as"
+        sync: false # already set in Render dashboard
       - key: OIDC_CLIENT_ID
-        sync: false # set in Render dashboard
+        sync: false # set manually in dashboard
       - key: SESSION_SECRET
-        generateValue: true
+        sync: false # set manually in dashboard

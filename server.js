@@ -1,23 +1,20 @@
-// server.js
-const express = require("express");
-const session = require("express-session");
-console.log("START");
-const openid = require("openid-client");
-console.log("openid-client keys:", Object.keys(openid));
-console.log("NEXT");
-const pkg = require("openid-client/package.json");
-console.log("openid-client version actually loaded:", pkg.version);
-
-const { Issuer, generators } = require("openid-client");
-console.log("Issuer type is:", typeof Issuer);
+import express from "express";
+import session from "express-session";
+import { Issuer, generators } from "openid-client";
 
 const {
-    OIDC_ISSUER,     // e.g. https://auth.pingone.com/<ENV_ID>/as
-    OIDC_CLIENT_ID,  // PingOne OIDC App Client ID
-    SESSION_SECRET,  // Render will auto-generate if you want
-    RENDER_EXTERNAL_URL, // Render injects this automatically
-    PORT = 10000,    // Render sets PORT for you
+    OIDC_ISSUER,
+    OIDC_CLIENT_ID,
+    SESSION_SECRET,
+    RENDER_EXTERNAL_URL,
+    PORT = 10000,
 } = process.env;
+
+if (!OIDC_ISSUER || !OIDC_CLIENT_ID || !RENDER_EXTERNAL_URL) {
+    throw new Error("Missing env vars: OIDC_ISSUER, OIDC_CLIENT_ID, RENDER_EXTERNAL_URL");
+}
+
+const OIDC_REDIRECT_URI = `${RENDER_EXTERNAL_URL}/callback`;
 
 console.log("Startup environment:");
 console.log("OIDC_ISSUER:", OIDC_ISSUER);
@@ -25,17 +22,8 @@ console.log("OIDC_CLIENT_ID:", OIDC_CLIENT_ID);
 console.log("RENDER_EXTERNAL_URL:", RENDER_EXTERNAL_URL);
 console.log("PORT:", PORT);
 
-if (!OIDC_ISSUER || !OIDC_CLIENT_ID) {
-    throw new Error("Missing env vars: OIDC_ISSUER, OIDC_CLIENT_ID");
-}
-if (!RENDER_EXTERNAL_URL) {
-    throw new Error("RENDER_EXTERNAL_URL not set (Render provides this)");
-}
-
-const OIDC_REDIRECT_URI = `${RENDER_EXTERNAL_URL}/callback`;
-
 const app = express();
-app.set("trust proxy", 1); // required behind Render proxy
+app.set("trust proxy", 1);
 
 app.use(
     session({
@@ -53,7 +41,7 @@ async function getClient() {
     const issuer = await Issuer.discover(OIDC_ISSUER);
     cachedClient = new issuer.Client({
         client_id: OIDC_CLIENT_ID,
-        token_endpoint_auth_method: "none", // PKCE = no client secret
+        token_endpoint_auth_method: "none",
         redirect_uris: [OIDC_REDIRECT_URI],
         response_types: ["code"],
     });
@@ -95,15 +83,11 @@ app.get("/callback", async (req, res, next) => {
         const client = await getClient();
         const params = client.callbackParams(req);
 
-        const tokenSet = await client.callback(
-            OIDC_REDIRECT_URI,
-            params,
-            {
-                state: req.session.state,
-                nonce: req.session.nonce,
-                code_verifier: req.session.code_verifier,
-            }
-        );
+        const tokenSet = await client.callback(OIDC_REDIRECT_URI, params, {
+            state: req.session.state,
+            nonce: req.session.nonce,
+            code_verifier: req.session.code_verifier,
+        });
 
         req.session.id_token = tokenSet.id_token;
         req.session.access_token = tokenSet.access_token;
