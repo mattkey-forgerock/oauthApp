@@ -1,6 +1,10 @@
 // server.js
 const express = require("express");
 const session = require("express-session");
+console.log("START");
+const openid = require("openid-client");
+console.log("openid-client keys:", Object.keys(openid));
+console.log("NEXT");
 const { Issuer, generators } = require("openid-client");
 console.log("Issuer type is:", typeof Issuer);
 
