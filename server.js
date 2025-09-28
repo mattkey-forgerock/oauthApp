@@ -1,29 +1,147 @@
-import * as openid from "openid-client";
-import { createRequire } from "module";
+import express from "express";
+import session from "express-session";
+import {
+    discovery,
+    randomPKCECodeVerifier,
+    calculatePKCECodeChallenge,
+    randomState,
+    randomNonce
+} from "openid-client";
 
-const require = createRequire(import.meta.url);
-const openidPkg = require("openid-client/package.json");
+const {
+    OIDC_ISSUER,
+    OIDC_CLIENT_ID,
+    SESSION_SECRET,
+    RENDER_EXTERNAL_URL,
+    PORT = 10000,
+} = process.env;
 
-console.log("openid-client package version:", openidPkg.version);
-console.log("Loaded openid-client keys:", Object.keys(openid));
+// ---- Log environment ----
+console.log("Startup environment:");
+console.log("OIDC_ISSUER:", OIDC_ISSUER);
+console.log("OIDC_CLIENT_ID:", OIDC_CLIENT_ID);
+console.log("RENDER_EXTERNAL_URL:", RENDER_EXTERNAL_URL);
+console.log("SESSION_SECRET set:", !!SESSION_SECRET);
+console.log("PORT:", PORT);
 
-const { Issuer, generators } = openid;
-console.log("Issuer typeof:", typeof Issuer);
-console.log("Generators keys:", Object.keys(generators || {}));
-
-const { OIDC_ISSUER } = process.env;
-console.log("OIDC_ISSUER env:", OIDC_ISSUER);
-
-if (!OIDC_ISSUER) {
-    console.error("Missing OIDC_ISSUER env var!");
-    process.exit(1);
+if (!OIDC_ISSUER || !OIDC_CLIENT_ID || !RENDER_EXTERNAL_URL) {
+    throw new Error("Missing required env vars: OIDC_ISSUER, OIDC_CLIENT_ID, RENDER_EXTERNAL_URL");
 }
 
-try {
-    console.log("Calling Issuer.discover...");
-    const issuer = await Issuer.discover(OIDC_ISSUER);
-    console.log("Discovery metadata keys:", Object.keys(issuer.metadata));
-    console.log("authorization_endpoint:", issuer.metadata.authorization_endpoint);
-} catch (err) {
-    console.error("Error from Issuer.discover:", err);
+const OIDC_REDIRECT_URI = `${RENDER_EXTERNAL_URL}/callback`;
+console.log("OIDC_REDIRECT_URI:", OIDC_REDIRECT_URI);
+
+const app = express();
+app.set("trust proxy", 1);
+
+app.use(
+    session({
+        name: "sid",
+        secret: SESSION_SECRET || "insecure-default",
+        resave: false,
+        saveUninitialized: false,
+        cookie: { httpOnly: true, secure: true, sameSite: "lax" },
+    })
+);
+
+let cachedClient;
+async function getClient() {
+    if (cachedClient) return cachedClient;
+    console.log("Discovering OIDC issuer:", OIDC_ISSUER);
+
+    const { client } = await discovery({
+        issuer: OIDC_ISSUER,
+        client_id: OIDC_CLIENT_ID,
+        token_endpoint_auth_method: "none",
+        redirect_uris: [OIDC_REDIRECT_URI],
+        response_types: ["code"],
+    });
+
+    console.log("Discovered client metadata:", client.metadata);
+    cachedClient = client;
+    return client;
 }
+
+function ensureAuth(req, res, next) {
+    if (req.session?.id_token) {
+        console.log("User is authenticated, claims:", req.session.userinfo);
+        return next();
+    }
+    console.log("User not authenticated, redirecting to /login");
+    return res.redirect("/login");
+}
+
+app.get("/login", async (req, res, next) => {
+    try {
+        console.log("Starting login flow...");
+        const client = await getClient();
+
+        const code_verifier = randomPKCECodeVerifier();
+        const code_challenge = calculatePKCECodeChallenge(code_verifier);
+        const state = randomState();
+        const nonce = randomNonce();
+
+        req.session.code_verifier = code_verifier;
+        req.session.state = state;
+        req.session.nonce = nonce;
+
+        const authUrl = client.buildAuthorizationUrl({
+            scope: "openid profile email",
+            code_challenge,
+            code_challenge_method: "S256",
+            state,
+            nonce,
+        });
+
+        console.log("Redirecting to authorization URL:", authUrl);
+        res.redirect(authUrl);
+    } catch (e) {
+        console.error("Login error:", e);
+        next(e);
+    }
+});
+
+app.get("/callback", async (req, res, next) => {
+    try {
+        console.log("Received callback with params:", req.query);
+        const client = await getClient();
+
+        const tokenSet = await client.authorizationCodeGrant({
+            parameters: req.query,
+            checks: {
+                state: req.session.state,
+                nonce: req.session.nonce,
+                code_verifier: req.session.code_verifier,
+            },
+        });
+
+        console.log("TokenSet received:", tokenSet);
+        console.log("Claims:", tokenSet.claims());
+
+        req.session.id_token = tokenSet.id_token;
+        req.session.access_token = tokenSet.access_token;
+        req.session.userinfo = tokenSet.claims();
+
+        delete req.session.code_verifier;
+        delete req.session.state;
+        delete req.session.nonce;
+
+        res.redirect("/");
+    } catch (e) {
+        console.error("Callback error:", e);
+        next(e);
+    }
+});
+
+app.get("/", ensureAuth, (req, res) => {
+    res.type("text").send("hello world");
+});
+
+app.use((err, _req, res, _next) => {
+    console.error("Unhandled error:", err);
+    res.status(500).send("Something went wrong.");
+});
+
+app.listen(PORT, () => {
+    console.log(`Listening on ${PORT}`);
+});
