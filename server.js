@@ -2,7 +2,14 @@ import express from "express";
 import session from "express-session";
 // import { discovery } from "openid-client";
 import { Issuer, generators } from "openid-client";
-console.log("openid-client version:", (await import("openid-client/package.json", { assert: { type: "json" } })).default.version);
+import { createRequire } from "module";
+import { readFileSync } from "fs";
+
+const require = createRequire(import.meta.url);
+const path = require.resolve("openid-client/package.json");
+const version = JSON.parse(readFileSync(path, "utf8")).version;
+
+console.log("openid-client version:", version);
 import crypto from "crypto";
 
 const {
