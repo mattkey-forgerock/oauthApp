@@ -1,12 +1,7 @@
 import express from "express";
 import session from "express-session";
-import {
-    discovery,
-    randomPKCECodeVerifier,
-    calculatePKCECodeChallenge,
-    randomState,
-    randomNonce
-} from "openid-client";
+import { discovery } from "openid-client";
+import crypto from "crypto";
 
 const {
     OIDC_ISSUER,
@@ -16,20 +11,25 @@ const {
     PORT = 10000,
 } = process.env;
 
-// ---- Log environment ----
-console.log("Startup environment:");
-console.log("OIDC_ISSUER:", OIDC_ISSUER);
-console.log("OIDC_CLIENT_ID:", OIDC_CLIENT_ID);
-console.log("RENDER_EXTERNAL_URL:", RENDER_EXTERNAL_URL);
-console.log("SESSION_SECRET set:", !!SESSION_SECRET);
-console.log("PORT:", PORT);
-
-if (!OIDC_ISSUER || !OIDC_CLIENT_ID || !RENDER_EXTERNAL_URL) {
-    throw new Error("Missing required env vars: OIDC_ISSUER, OIDC_CLIENT_ID, RENDER_EXTERNAL_URL");
+// PKCE helpers
+function generateCodeVerifier() {
+    return crypto.randomBytes(32).toString("hex");
+}
+function generateCodeChallenge(verifier) {
+    return crypto
+        .createHash("sha256")
+        .update(verifier)
+        .digest()
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
 }
 
+if (!OIDC_ISSUER || !OIDC_CLIENT_ID || !RENDER_EXTERNAL_URL) {
+    throw new Error("Missing required env vars");
+}
 const OIDC_REDIRECT_URI = `${RENDER_EXTERNAL_URL}/callback`;
-console.log("OIDC_REDIRECT_URI:", OIDC_REDIRECT_URI);
 
 const app = express();
 app.set("trust proxy", 1);
@@ -47,8 +47,7 @@ app.use(
 let cachedClient;
 async function getClient() {
     if (cachedClient) return cachedClient;
-    console.log("Discovering OIDC issuer:", OIDC_ISSUER);
-
+    console.log("Discovering issuer:", OIDC_ISSUER);
     const { client } = await discovery({
         issuer: OIDC_ISSUER,
         client_id: OIDC_CLIENT_ID,
@@ -56,30 +55,23 @@ async function getClient() {
         redirect_uris: [OIDC_REDIRECT_URI],
         response_types: ["code"],
     });
-
     console.log("Discovered client metadata:", client.metadata);
     cachedClient = client;
     return client;
 }
 
 function ensureAuth(req, res, next) {
-    if (req.session?.id_token) {
-        console.log("User is authenticated, claims:", req.session.userinfo);
-        return next();
-    }
-    console.log("User not authenticated, redirecting to /login");
+    if (req.session?.id_token) return next();
     return res.redirect("/login");
 }
 
 app.get("/login", async (req, res, next) => {
     try {
-        console.log("Starting login flow...");
         const client = await getClient();
-
-        const code_verifier = randomPKCECodeVerifier();
-        const code_challenge = calculatePKCECodeChallenge(code_verifier);
-        const state = randomState();
-        const nonce = randomNonce();
+        const code_verifier = generateCodeVerifier();
+        const code_challenge = generateCodeChallenge(code_verifier);
+        const state = crypto.randomBytes(16).toString("hex");
+        const nonce = crypto.randomBytes(16).toString("hex");
 
         req.session.code_verifier = code_verifier;
         req.session.state = state;
@@ -93,17 +85,17 @@ app.get("/login", async (req, res, next) => {
             nonce,
         });
 
-        console.log("Redirecting to authorization URL:", authUrl);
+        console.log("Redirecting to:", authUrl);
         res.redirect(authUrl);
-    } catch (e) {
-        console.error("Login error:", e);
-        next(e);
+    } catch (err) {
+        console.error("Login error:", err);
+        next(err);
     }
 });
 
 app.get("/callback", async (req, res, next) => {
     try {
-        console.log("Received callback with params:", req.query);
+        console.log("Callback params:", req.query);
         const client = await getClient();
 
         const tokenSet = await client.authorizationCodeGrant({
@@ -115,31 +107,22 @@ app.get("/callback", async (req, res, next) => {
             },
         });
 
-        console.log("TokenSet received:", tokenSet);
+        console.log("TokenSet:", tokenSet);
         console.log("Claims:", tokenSet.claims());
 
         req.session.id_token = tokenSet.id_token;
         req.session.access_token = tokenSet.access_token;
         req.session.userinfo = tokenSet.claims();
 
-        delete req.session.code_verifier;
-        delete req.session.state;
-        delete req.session.nonce;
-
         res.redirect("/");
-    } catch (e) {
-        console.error("Callback error:", e);
-        next(e);
+    } catch (err) {
+        console.error("Callback error:", err);
+        next(err);
     }
 });
 
 app.get("/", ensureAuth, (req, res) => {
     res.type("text").send("hello world");
-});
-
-app.use((err, _req, res, _next) => {
-    console.error("Unhandled error:", err);
-    res.status(500).send("Something went wrong.");
 });
 
 app.listen(PORT, () => {
