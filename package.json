@@ -11,6 +11,6 @@
     "dependencies": {
         "express": "^4.19.2",
         "express-session": "^1.17.3",
-        "openid-client": "^6.1.7"
+        "openid-client": "6.1.7"
     }
 }
