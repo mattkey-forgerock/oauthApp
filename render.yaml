@@ -1,0 +1,14 @@
+services:
+  - name: pingone-hello
+    type: web
+    env: node
+    plan: starter
+    buildCommand: "npm install"
+    startCommand: "node server.js"
+    envVars:
+      - key: OIDC_ISSUER
+        value: "https://auth.pingone.ca/73391f1a-5c96-4b12-9936-5449b3a18b67/as"
+      - key: OIDC_CLIENT_ID
+        sync: false # set in Render dashboard
+      - key: SESSION_SECRET
+        generateValue: true
