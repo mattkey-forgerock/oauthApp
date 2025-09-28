@@ -1,9 +1,12 @@
 import express from "express";
 import session from "express-session";
-const pkg = require("openid-client/package.json");
-console.log("openid-client version actually loaded:", pkg.version);
-import { Issuer, generators } from "openid-client";
-console.log("Issuer type is:", typeof Issuer);
+import {
+    discovery,
+    randomPKCECodeVerifier,
+    calculatePKCECodeChallenge,
+    randomState,
+    randomNonce
+} from "openid-client";
 
 const {
     OIDC_ISSUER,
@@ -41,14 +44,15 @@ app.use(
 let cachedClient;
 async function getClient() {
     if (cachedClient) return cachedClient;
-    const issuer = await Issuer.discover(OIDC_ISSUER);
-    cachedClient = new issuer.Client({
+    const { client } = await discovery({
+        issuer: OIDC_ISSUER,
         client_id: OIDC_CLIENT_ID,
-        token_endpoint_auth_method: "none",
+        token_endpoint_auth_method: "none", // PKCE public client
         redirect_uris: [OIDC_REDIRECT_URI],
         response_types: ["code"],
     });
-    return cachedClient;
+    cachedClient = client;
+    return client;
 }
 
 function ensureAuth(req, res, next) {
@@ -59,22 +63,24 @@ function ensureAuth(req, res, next) {
 app.get("/login", async (req, res, next) => {
     try {
         const client = await getClient();
-        const code_verifier = generators.codeVerifier();
-        const code_challenge = generators.codeChallenge(code_verifier);
-        const state = generators.state();
-        const nonce = generators.nonce();
+
+        const code_verifier = randomPKCECodeVerifier();
+        const code_challenge = calculatePKCECodeChallenge(code_verifier);
+        const state = randomState();
+        const nonce = randomNonce();
 
         req.session.code_verifier = code_verifier;
         req.session.state = state;
         req.session.nonce = nonce;
 
-        const authUrl = client.authorizationUrl({
+        const authUrl = client.buildAuthorizationUrl({
             scope: "openid profile email",
             code_challenge,
             code_challenge_method: "S256",
             state,
             nonce,
         });
+
         res.redirect(authUrl);
     } catch (e) {
         next(e);
@@ -84,12 +90,15 @@ app.get("/login", async (req, res, next) => {
 app.get("/callback", async (req, res, next) => {
     try {
         const client = await getClient();
-        const params = client.callbackParams(req);
+        const params = req.query;
 
-        const tokenSet = await client.callback(OIDC_REDIRECT_URI, params, {
-            state: req.session.state,
-            nonce: req.session.nonce,
-            code_verifier: req.session.code_verifier,
+        const tokenSet = await client.authorizationCodeGrant({
+            parameters: params,
+            checks: {
+                state: req.session.state,
+                nonce: req.session.nonce,
+                code_verifier: req.session.code_verifier,
+            },
         });
 
         req.session.id_token = tokenSet.id_token;
@@ -104,22 +113,6 @@ app.get("/callback", async (req, res, next) => {
     } catch (e) {
         next(e);
     }
-});
-
-app.get("/logout", async (req, res) => {
-    const idToken = req.session.id_token;
-    req.session.destroy(() => { });
-    try {
-        const client = await getClient();
-        const endSession = client.issuer.metadata.end_session_endpoint;
-        if (endSession && idToken) {
-            const url = new URL(endSession);
-            url.searchParams.set("id_token_hint", idToken);
-            url.searchParams.set("post_logout_redirect_uri", RENDER_EXTERNAL_URL);
-            return res.redirect(url.toString());
-        }
-    } catch (_) { }
-    res.redirect("/");
 });
 
 app.get("/", ensureAuth, (req, res) => {
