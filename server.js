@@ -1,7 +1,8 @@
 import * as openid from "openid-client";
+import pkg from "openid-client/package.json" assert { type: "json" };
 
+console.log("openid-client package version:", pkg.version);
 console.log("Loaded openid-client keys:", Object.keys(openid));
-console.log("openid-client package version:", (await import("openid-client/package.json")).version);
 
 const { Issuer, generators } = openid;
 console.log("Issuer typeof:", typeof Issuer);
@@ -18,7 +19,8 @@ if (!OIDC_ISSUER) {
 try {
     console.log("Calling Issuer.discover...");
     const issuer = await Issuer.discover(OIDC_ISSUER);
-    console.log("Discovery result issuer.metadata:", issuer.metadata);
+    console.log("Discovery result issuer.metadata keys:", Object.keys(issuer.metadata));
+    console.log("authorization_endpoint:", issuer.metadata.authorization_endpoint);
 } catch (err) {
     console.error("Error from Issuer.discover:", err);
 }
