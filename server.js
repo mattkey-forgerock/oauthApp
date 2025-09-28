@@ -5,6 +5,9 @@ console.log("START");
 const openid = require("openid-client");
 console.log("openid-client keys:", Object.keys(openid));
 console.log("NEXT");
+const pkg = require("openid-client/package.json");
+console.log("openid-client version actually loaded:", pkg.version);
+
 const { Issuer, generators } = require("openid-client");
 console.log("Issuer type is:", typeof Issuer);
 
