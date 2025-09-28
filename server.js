@@ -1,6 +1,9 @@
 import express from "express";
 import session from "express-session";
+const pkg = require("openid-client/package.json");
+console.log("openid-client version actually loaded:", pkg.version);
 import { Issuer, generators } from "openid-client";
+console.log("Issuer type is:", typeof Issuer);
 
 const {
     OIDC_ISSUER,
