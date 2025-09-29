@@ -9,12 +9,20 @@ console.log("openid-client exports available:", Object.keys(openid));
 const { Issuer, generators } = openid;
 
 const {
-    OIDC_ISSUER,
+    OIDC_BASEURL,
     OIDC_CLIENT_ID,
     SESSION_SECRET,
     RENDER_EXTERNAL_URL,
     PORT = 10000,
 } = process.env;
+
+if (!OIDC_BASEURL) {
+    throw new Error("Missing env var: OIDC_BASEURL");
+}
+
+const OIDC_ISSUER = `${OIDC_BASEURL}/as`;
+const OIDC_SIGNOFF = `${OIDC_BASEURL}/as/signoff`;
+
 
 console.log("Startup environment:");
 console.log("OIDC_ISSUER:", OIDC_ISSUER);
@@ -102,6 +110,17 @@ app.get("/login", async (req, res, next) => {
         next(err);
     }
 });
+
+app.get("/logout", (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            console.error("Error destroying session:", err);
+        }
+        res.clearCookie("sid");
+        res.redirect(OIDC_SIGNOFF);
+    });
+});
+
 
 app.get("/callback", async (req, res, next) => {
     try {

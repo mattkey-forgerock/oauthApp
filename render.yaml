@@ -6,7 +6,7 @@ services:
     buildCommand: "npm install --omit=dev"
     startCommand: "node server.js"
     envVars:
-      - key: OIDC_ISSUER
+      - key: OIDC_BASEURL
         sync: false # already set in Render dashboard
       - key: OIDC_CLIENT_ID
         sync: false # set manually in dashboard
