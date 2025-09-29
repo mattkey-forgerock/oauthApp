@@ -1,3 +1,4 @@
+// Simple OIDC app using express and openid-client
 import express from "express";
 import session from "express-session";
 import * as openid from "openid-client";
