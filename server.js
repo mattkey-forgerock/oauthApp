@@ -161,7 +161,7 @@ app.get("/", ensureAuth, (req, res) => {
             <h1 id="greeting">hello world</h1>
             <button id="whoami">Who am I?</button>
             <button id="refresh">Refresh Token</button>
-            <button id="logoff">Logoff</button>
+            <button id="logout">Logout</button>
             <script>
                 document.getElementById('whoami').onclick = async function() {
                     const resp = await fetch('/whoami');
@@ -189,8 +189,8 @@ app.get("/", ensureAuth, (req, res) => {
                         document.getElementById('greeting').textContent = 'Refresh error';
                     }
                 };
-                document.getElementById('logoff').onclick = function() {
-                    window.location.href = '/logoff';
+                document.getElementById('logout').onclick = function() {
+                    window.location.href = '/logout';
                 };
             </script>
         </body>
