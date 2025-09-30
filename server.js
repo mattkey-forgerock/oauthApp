@@ -149,8 +149,46 @@ app.get("/callback", async (req, res, next) => {
     }
 });
 
+
 app.get("/", ensureAuth, (req, res) => {
-    res.type("text").send("hello world");
+    // Render a simple HTML page with a button
+    res.type("html").send(`
+        <html>
+        <head><title>hello world</title></head>
+        <body>
+            <h1 id="greeting">hello world</h1>
+            <button id="whoami">Who am I?</button>
+            <script>
+                document.getElementById('whoami').onclick = async function() {
+                    const resp = await fetch('/whoami');
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data.givenName) {
+                            document.getElementById('greeting').textContent = 'hello ' + data.givenName;
+                        } else {
+                            document.getElementById('greeting').textContent = 'hello (unknown)';
+                        }
+                    } else {
+                        document.getElementById('greeting').textContent = 'hello (error)';
+                    }
+                };
+            </script>
+        </body>
+        </html>
+    `);
+});
+
+app.get("/whoami", ensureAuth, async (req, res) => {
+    try {
+        const client = await getClient();
+        const accessToken = req.session.access_token;
+        if (!accessToken) return res.status(401).json({ error: "No access token" });
+        const userinfo = await client.userinfo(accessToken);
+        res.json({ givenName: userinfo.given_name });
+    } catch (err) {
+        console.error("/whoami error:", err);
+        res.status(500).json({ error: "Failed to fetch userinfo" });
+    }
 });
 
 app.use((err, _req, res, _next) => {
