@@ -13,7 +13,7 @@ const {
     OIDC_BASEURL,
     OIDC_CLIENT_ID,
     SESSION_SECRET,
-    RENDER_EXTERNAL_URL,
+    APP_URL,
     PORT = 10000,
 } = process.env;
 
@@ -28,15 +28,15 @@ const OIDC_SIGNOFF = `${OIDC_BASEURL}/as/signoff`;
 console.log("Startup environment:");
 console.log("OIDC_ISSUER:", OIDC_ISSUER);
 console.log("OIDC_CLIENT_ID:", OIDC_CLIENT_ID);
-console.log("RENDER_EXTERNAL_URL:", RENDER_EXTERNAL_URL);
+console.log("APP_URL:", APP_URL);
 console.log("SESSION_SECRET set:", !!SESSION_SECRET);
 console.log("PORT:", PORT);
 
-if (!OIDC_ISSUER || !OIDC_CLIENT_ID || !RENDER_EXTERNAL_URL) {
-    throw new Error("Missing required env vars: OIDC_ISSUER, OIDC_CLIENT_ID, RENDER_EXTERNAL_URL");
+if (!OIDC_ISSUER || !OIDC_CLIENT_ID || !APP_URL) {
+    throw new Error("Missing required env vars: OIDC_ISSUER, OIDC_CLIENT_ID, APP_URL");
 }
 
-const OIDC_REDIRECT_URI = `${RENDER_EXTERNAL_URL}/callback`;
+const OIDC_REDIRECT_URI = `${APP_URL}/callback`;
 console.log("OIDC_REDIRECT_URI:", OIDC_REDIRECT_URI);
 
 const app = express();
