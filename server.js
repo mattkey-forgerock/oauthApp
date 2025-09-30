@@ -123,6 +123,7 @@ app.get("/logout", (req, res) => {
 });
 
 
+
 app.get("/callback", async (req, res, next) => {
     try {
         console.log("Callback received with query params:", req.query);
@@ -140,6 +141,7 @@ app.get("/callback", async (req, res, next) => {
 
         req.session.id_token = tokenSet.id_token;
         req.session.access_token = tokenSet.access_token;
+        req.session.refresh_token = tokenSet.refresh_token;
         req.session.userinfo = tokenSet.claims();
 
         res.redirect("/");
@@ -150,14 +152,16 @@ app.get("/callback", async (req, res, next) => {
 });
 
 
+
 app.get("/", ensureAuth, (req, res) => {
-    // Render a simple HTML page with a button
+    // Render a simple HTML page with two buttons
     res.type("html").send(`
         <html>
         <head><title>hello world</title></head>
         <body>
             <h1 id="greeting">hello world</h1>
             <button id="whoami">Who am I?</button>
+            <button id="refresh">Refresh Token</button>
             <script>
                 document.getElementById('whoami').onclick = async function() {
                     const resp = await fetch('/whoami');
@@ -172,10 +176,40 @@ app.get("/", ensureAuth, (req, res) => {
                         document.getElementById('greeting').textContent = 'hello (error)';
                     }
                 };
+                document.getElementById('refresh').onclick = async function() {
+                    const resp = await fetch('/refresh');
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data.success) {
+                            document.getElementById('greeting').textContent = 'Token refreshed!';
+                        } else {
+                            document.getElementById('greeting').textContent = 'Refresh failed: ' + (data.error || 'unknown');
+                        }
+                    } else {
+                        document.getElementById('greeting').textContent = 'Refresh error';
+                    }
+                };
             </script>
         </body>
         </html>
     `);
+});
+// Refresh token endpoint
+app.get("/refresh", ensureAuth, async (req, res) => {
+    try {
+        const client = await getClient();
+        const refreshToken = req.session.refresh_token;
+        if (!refreshToken) return res.status(400).json({ success: false, error: "No refresh token" });
+        const tokenSet = await client.refresh(refreshToken);
+        req.session.access_token = tokenSet.access_token;
+        req.session.id_token = tokenSet.id_token;
+        req.session.refresh_token = tokenSet.refresh_token;
+        req.session.userinfo = tokenSet.claims();
+        res.json({ success: true });
+    } catch (err) {
+        console.error("/refresh error:", err);
+        res.status(500).json({ success: false, error: "Failed to refresh token" });
+    }
 });
 
 app.get("/whoami", ensureAuth, async (req, res) => {
