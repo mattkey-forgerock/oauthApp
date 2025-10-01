@@ -52,6 +52,10 @@ app.use(
     })
 );
 
+// For parsing form POSTs
+app.use(express.urlencoded({ extended: true }));
+
+
 let cachedClient;
 async function getClient() {
     if (cachedClient) return cachedClient;
@@ -253,11 +257,19 @@ app.get("/appLogin", (req, res) => {
     <body>
       <div class="login-container">
         <img src="${logoUrl}" alt="Logo" />
-        <form method="GET" action="/">
-          <input type="text" name="username" placeholder="Username" required />
-          <input type="password" name="password" placeholder="Password" required />
-          <button type="submit">Log In</button>
-        </form>
+                <form method="POST" action="/mockLogin">
+                    <input type="text" name="username" placeholder="Username" required />
+                    <input type="password" name="password" placeholder="Password" required />
+                    <button type="submit">Log In</button>
+                </form>
+// Mock login for /appLogin
+app.post("/mockLogin", (req, res) => {
+    // Set a fake session so / does not redirect to /login
+    req.session = req.session || {};
+    req.session.id_token = "mock_id_token";
+    req.session.userinfo = { given_name: req.body?.username || "mockUser" };
+    res.redirect("/");
+});
       </div>
     </body>
     </html>
