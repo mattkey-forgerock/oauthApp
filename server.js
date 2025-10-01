@@ -76,6 +76,7 @@ async function getClient() {
 }
 
 function ensureAuth(req, res, next) {
+
     if (req.session?.id_token) {
         console.log("User authenticated with claims:", req.session.userinfo);
         return next();
@@ -83,6 +84,7 @@ function ensureAuth(req, res, next) {
 
     // Allow access if the request originated from /appLogin
     const referer = req.headers.referer || "";
+    console.log("Referer header:", referer);
     if (referer.includes("/appLogin")) {
         console.log("Bypassing OIDC because request came from /appLogin (mock login).");
         return next();
