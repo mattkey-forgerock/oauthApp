@@ -197,6 +197,73 @@ app.get("/", ensureAuth, (req, res) => {
         </html>
     `);
 });
+
+app.get("/appLogin", (req, res) => {
+    const logoUrl = process.env.APP_LOGO_URL || "https://via.placeholder.com/150";
+
+    res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>App Login</title>
+      <style>
+        body {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          margin: 0;
+          font-family: Arial, sans-serif;
+          background-color: #f9f9f9;
+        }
+        .login-container {
+          text-align: center;
+          background: #fff;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          width: 300px;
+        }
+        .login-container img {
+          max-width: 120px;
+          margin-bottom: 1rem;
+        }
+        .login-container input {
+          width: 100%;
+          padding: 0.75rem;
+          margin: 0.5rem 0;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+        }
+        .login-container button {
+          width: 100%;
+          padding: 0.75rem;
+          background: #0072f0;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .login-container button:hover {
+          background: #005bb5;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="login-container">
+        <img src="${logoUrl}" alt="Logo" />
+        <form method="GET" action="/">
+          <input type="text" name="username" placeholder="Username" required />
+          <input type="password" name="password" placeholder="Password" required />
+          <button type="submit">Log In</button>
+        </form>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 // Refresh token endpoint
 app.get("/refresh", ensureAuth, async (req, res) => {
     try {
