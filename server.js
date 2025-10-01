@@ -52,10 +52,6 @@ app.use(
     })
 );
 
-// For parsing form POSTs
-app.use(express.urlencoded({ extended: true }));
-
-
 let cachedClient;
 async function getClient() {
     if (cachedClient) return cachedClient;
@@ -84,9 +80,18 @@ function ensureAuth(req, res, next) {
         console.log("User authenticated with claims:", req.session.userinfo);
         return next();
     }
+
+    // Allow access if the request originated from /appLogin
+    const referer = req.headers.referer || "";
+    if (referer.includes("/appLogin")) {
+        console.log("Bypassing OIDC because request came from /appLogin (mock login).");
+        return next();
+    }
+
     console.log("User not authenticated, redirecting to /login");
     return res.redirect("/login");
 }
+
 
 app.get("/login", async (req, res, next) => {
     try {
@@ -257,19 +262,11 @@ app.get("/appLogin", (req, res) => {
     <body>
       <div class="login-container">
         <img src="${logoUrl}" alt="Logo" />
-                <form method="POST" action="/mockLogin">
-                    <input type="text" name="username" placeholder="Username" required />
-                    <input type="password" name="password" placeholder="Password" required />
-                    <button type="submit">Log In</button>
-                </form>
-// Mock login for /appLogin
-app.post("/mockLogin", (req, res) => {
-    // Set a fake session so / does not redirect to /login
-    req.session = req.session || {};
-    req.session.id_token = "mock_id_token";
-    req.session.userinfo = { given_name: req.body?.username || "mockUser" };
-    res.redirect("/");
-});
+        <form method="GET" action="/">
+          <input type="text" name="username" placeholder="Username" required />
+          <input type="password" name="password" placeholder="Password" required />
+          <button type="submit">Log In</button>
+        </form>
       </div>
     </body>
     </html>
