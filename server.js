@@ -154,13 +154,16 @@ app.get("/callback", async (req, res, next) => {
 
 
 app.get("/", ensureAuth, (req, res) => {
+    // Check amr value in id_token claims
+    const amr = Array.isArray(req.session?.userinfo?.amr) ? req.session.userinfo.amr : [];
+    const showRefresh = !amr.includes('pwd');
     res.type("html").send(`
         <html>
         <head><title>hello world</title></head>
         <body>
             <h1 id="greeting">hello world</h1>
             <button id="whoami">Who am I?</button>
-            <button id="refresh">Refresh Token</button>
+            ${showRefresh ? '<button id="refresh">Refresh Token</button>' : ''}
             <button id="logout">Logout</button>
             <script>
                 document.getElementById('whoami').onclick = async function() {
@@ -176,6 +179,7 @@ app.get("/", ensureAuth, (req, res) => {
                         document.getElementById('greeting').textContent = 'hello (error)';
                     }
                 };
+                ${showRefresh ? `
                 document.getElementById('refresh').onclick = async function() {
                     const resp = await fetch('/refresh');
                     if (resp.ok) {
@@ -188,7 +192,7 @@ app.get("/", ensureAuth, (req, res) => {
                     } else {
                         document.getElementById('greeting').textContent = 'Refresh error';
                     }
-                };
+                };` : ''}
                 document.getElementById('logout').onclick = function() {
                     window.location.href = '/logout';
                 };
