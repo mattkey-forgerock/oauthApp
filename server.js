@@ -170,7 +170,10 @@ app.get("/", ensureAuth, (req, res) => {
     const showRefresh = !amr.includes('pwd');
     res.type("html").send(`
         <html>
-        <head><title>hello world</title></head>
+        <head>
+            <title>hello world</title>
+            <link rel="icon" type="image/x-icon" href="https://www.atb.com/static/img/favicon.ico">
+        </head>
         <body>
             <h1 id="greeting">hello world</h1>
             <button id="whoami">Who am I?</button>
